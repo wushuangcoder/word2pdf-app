@@ -63,7 +63,7 @@ jobs:
 
       - name: 获取项目名称作为镜像名
         id: get_image_name
-        run: echo "image_name= ${GITHUB_REPOSITORY##*/}" >> "$GITHUB_OUTPUT"
+        run: echo "image_name=${GITHUB_REPOSITORY##*/}" >> "$GITHUB_OUTPUT"
 
       - name: 构建并推送 Docker 镜像
         env:
