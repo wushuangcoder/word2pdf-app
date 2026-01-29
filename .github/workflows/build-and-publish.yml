@@ -1,0 +1,81 @@
+name: 构建与发布 
+
+on: 
+  push: 
+    tags: 
+      - 'v*.*.*' 
+
+permissions: 
+  contents: write 
+
+jobs: 
+  create-release: 
+    runs-on: ubuntu-latest 
+    steps: 
+      - name: 检出代码 
+        uses: actions/checkout@v4 
+        with: 
+          fetch-depth: 0  # 确保能获取到 tag 和完整历史 
+
+      - name: 更新 GitHub CLI 到最新版本
+        run: sudo apt-get update && sudo apt-get install -y gh
+
+      - name: 创建 GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          # 获取打 tag 的 commit 的完整提交信息（第一行为标题，后续为正文）
+          COMMIT_MESSAGE=$(git log -1 --pretty=format:%B "$GITHUB_SHA")
+          
+          # 使用 printf 安全处理多行文本
+          printf "%s" "$COMMIT_MESSAGE" > release-notes.txt
+          
+          # 先检查并删除现有的相同标签Release（如果存在）
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "Release $TAG already exists, deleting it..."
+            gh release delete "$TAG" --yes
+            # 等待几秒确保删除完成
+            sleep 3
+          fi
+          
+          # 创建新的Release
+          gh release create "$TAG" \
+            --title "Release $TAG" \
+            --notes-file release-notes.txt 
+
+  build-and-push-docker-to-aliyun: 
+    needs: create-release 
+    runs-on: ubuntu-latest 
+    steps: 
+      - name: 检出代码 
+        uses: actions/checkout@v4 
+
+      - name: 登录阿里云容器镜像仓库 
+        run: | 
+          echo "${{ secrets.ALIYUN_REGISTRY_PASSWORD }}" | \
+          docker login --username "${{ secrets.ALIYUN_REGISTRY_USER }}" \
+                       --password-stdin "${{ secrets.ALIYUN_REGISTRY }}"
+
+      - name: 提取版本标签 
+        id: get_version 
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT" 
+
+      - name: 构建并推送 Docker 镜像 
+        env: 
+          REGISTRY: ${{ secrets.ALIYUN_REGISTRY }} 
+          NAMESPACE: ${{ secrets.ALIYUN_NAME_SPACE }} 
+          IMAGE_NAME: pdf2html-app 
+          TAG: ${{ steps.get_version.outputs.version }} 
+        run: | 
+          FULL_IMAGE="${REGISTRY}/${NAMESPACE}/${IMAGE_NAME}:${TAG}" 
+          LATEST_IMAGE="${REGISTRY}/${NAMESPACE}/${IMAGE_NAME}:latest" 
+
+          echo "Building and pushing: $FULL_IMAGE" 
+          docker build -t "$FULL_IMAGE" -f Dockerfile . 
+
+          echo "Tagging latest: $LATEST_IMAGE" 
+          docker tag "$FULL_IMAGE" "$LATEST_IMAGE" 
+
+          docker push "$FULL_IMAGE" 
+          docker push "$LATEST_IMAGE"
