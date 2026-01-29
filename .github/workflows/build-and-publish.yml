@@ -69,7 +69,7 @@ jobs:
         env:
           REGISTRY: ${{ secrets.ALIYUN_REGISTRY }}
           NAMESPACE: ${{ secrets.ALIYUN_NAME_SPACE }}
-          IMAGE_NAME: $ {{ steps.get_image_name.outputs.image_name }}
+          IMAGE_NAME: ${{ steps.get_image_name.outputs.image_name }}
           TAG: ${{ steps.get_version.outputs.version }}
         run: |
           FULL_IMAGE="${REGISTRY}/${NAMESPACE}/${IMAGE_NAME}:${TAG}" 
