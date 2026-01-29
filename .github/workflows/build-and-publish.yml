@@ -1,20 +1,20 @@
-name: 构建与发布 
+name: 构建与发布
 
-on: 
-  push: 
-    tags: 
-      - 'v*.*.*' 
+on:
+  push:
+    tags:
+      - 'v*.*.*'
 
-permissions: 
-  contents: write 
+permissions:
+  contents: write
 
-jobs: 
-  create-release: 
-    runs-on: ubuntu-latest 
-    steps: 
-      - name: 检出代码 
-        uses: actions/checkout@v4 
-        with: 
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
           fetch-depth: 0  # 确保能获取到 tag 和完整历史 
 
       - name: 更新 GitHub CLI 到最新版本
@@ -44,30 +44,34 @@ jobs:
             --title "Release $TAG" \
             --notes-file release-notes.txt 
 
-  build-and-push-docker-to-aliyun: 
-    needs: create-release 
-    runs-on: ubuntu-latest 
-    steps: 
-      - name: 检出代码 
-        uses: actions/checkout@v4 
+  build-and-push-docker-to-aliyun:
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
 
-      - name: 登录阿里云容器镜像仓库 
-        run: | 
+      - name: 登录阿里云容器镜像仓库
+        run: |
           echo "${{ secrets.ALIYUN_REGISTRY_PASSWORD }}" | \
           docker login --username "${{ secrets.ALIYUN_REGISTRY_USER }}" \
                        --password-stdin "${{ secrets.ALIYUN_REGISTRY }}"
 
-      - name: 提取版本标签 
-        id: get_version 
-        run: echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT" 
+      - name: 提取版本标签
+        id: get_version
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
 
-      - name: 构建并推送 Docker 镜像 
-        env: 
-          REGISTRY: ${{ secrets.ALIYUN_REGISTRY }} 
-          NAMESPACE: ${{ secrets.ALIYUN_NAME_SPACE }} 
-          IMAGE_NAME: pdf2html-app 
-          TAG: ${{ steps.get_version.outputs.version }} 
-        run: | 
+      - name: 获取项目名称作为镜像名
+        id: get_image_name
+        run: echo "image_name= $ {GITHUB_REPOSITORY##*/}" >> " $ GITHUB_OUTPUT"
+
+      - name: 构建并推送 Docker 镜像
+        env:
+          REGISTRY: ${{ secrets.ALIYUN_REGISTRY }}
+          NAMESPACE: ${{ secrets.ALIYUN_NAME_SPACE }}
+          IMAGE_NAME: $ {{ steps.get_image_name.outputs.image_name }}
+          TAG: ${{ steps.get_version.outputs.version }}
+        run: |
           FULL_IMAGE="${REGISTRY}/${NAMESPACE}/${IMAGE_NAME}:${TAG}" 
           LATEST_IMAGE="${REGISTRY}/${NAMESPACE}/${IMAGE_NAME}:latest" 
 
